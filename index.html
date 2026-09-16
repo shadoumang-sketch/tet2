@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>나만의 테트리스 게임</title>
+    <title>90s 레트로 테트리스 게임</title>
     <style>
         * {
             box-sizing: border-box;
@@ -12,7 +12,9 @@
         }
 
         body {
-            background-color: #1a1a1a;
+            /* 배경 이미지 적용 (tet01.png) */
+            background: url('tet01.png') no-repeat center center fixed;
+            background-size: cover;
             color: #fff;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
@@ -24,81 +26,96 @@
         .game-container {
             display: flex;
             gap: 20px;
-            background-color: #2a2a2a;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            background-color: rgba(20, 20, 30, 0.88);
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 0 30px rgba(0, 255, 204, 0.3), 0 10px 40px rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         #tetris {
-            border: 2px solid #444;
-            background-color: #000;
-            border-radius: 4px;
+            border: 2px solid #00ffcc;
+            background-color: rgba(0, 0, 0, 0.85);
+            border-radius: 6px;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
         }
 
         .side-panel {
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            min-width: 150px;
+            min-width: 160px;
         }
 
         .info-box {
-            background-color: #333;
-            padding: 15px;
+            background-color: rgba(45, 45, 60, 0.8);
+            padding: 12px;
             border-radius: 8px;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
         .info-box h2 {
-            font-size: 1rem;
+            font-size: 0.85rem;
             color: #aaa;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
         }
 
         .info-box p {
-            font-size: 1.5rem;
+            font-size: 1.6rem;
             font-weight: bold;
             color: #00ffcc;
+            text-shadow: 0 0 8px rgba(0, 255, 204, 0.6);
         }
 
-        .controls-info {
-            background-color: #333;
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            line-height: 1.5;
-            color: #ccc;
-        }
-
-        .controls-info h3 {
-            color: #fff;
-            margin-bottom: 8px;
-        }
-
-        #start-btn {
+        .btn {
             width: 100%;
-            padding: 12px;
+            padding: 10px;
             font-size: 1rem;
             font-weight: bold;
-            color: #fff;
-            background-color: #00ffcc;
             color: #000;
+            background-color: #00ffcc;
             border: none;
             border-radius: 6px;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: all 0.2s;
+            box-shadow: 0 0 10px rgba(0, 255, 204, 0.4);
+            margin-bottom: 8px;
         }
 
-        #start-btn:hover {
-            background-color: #00cca3;
+        .btn:hover {
+            background-color: #ff0d72;
+            color: #fff;
+            box-shadow: 0 0 15px rgba(255, 13, 114, 0.7);
+        }
+
+        .btn-secondary {
+            background-color: #ff8e0d;
+        }
+
+        .controls-info {
+            background-color: rgba(45, 45, 60, 0.8);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            color: #ddd;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .controls-info h3 {
+            color: #ff0d72;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
 
     <div class="game-container">
-        <!-- 테트리스 게임판 (가로 10칸, 세로 20칸 / 1칸=20px -> 200x400) -->
+        <!-- 테트리스 게임판 (가로 12칸 x 세로 20칸) -->
         <canvas id="tetris" width="240" height="400"></canvas>
 
         <div class="side-panel">
@@ -111,7 +128,8 @@
                     <h2>레벨 (LEVEL)</h2>
                     <p id="level">1</p>
                 </div>
-                <button id="start-btn" onclick="startGame()">게임 시작</button>
+                <button class="btn" id="start-btn" onclick="startGame()">게임 시작</button>
+                <button class="btn btn-secondary" id="sound-btn" onclick="toggleSound()">BGM: ON</button>
             </div>
 
             <div class="controls-info">
@@ -129,75 +147,111 @@
         const context = canvas.getContext('2d');
         const scoreElement = document.getElementById('score');
         const levelElement = document.getElementById('level');
+        const soundBtn = document.getElementById('sound-btn');
 
-        // 캔버스 크기 확대 스케일 설정 (1블록 = 20px)
         context.scale(20, 20);
 
-        // 테트리스 블록 색상 정의
-        const COLORS = [
-            null,
-            '#FF0D72', // I (분홍)
-            '#0DC2FF', // J (시안)
-            '#0DFF72', // L (라임)
-            '#F538FF', // O (자주)
-            '#FF8E0D', // S (주황)
-            '#FFE138', // T (노랑)
-            '#3877FF'  // Z (파랑)
-        ];
+        // --- 레트로 사운드 (Web Audio API) 시스템 ---
+        let audioCtx = null;
+        let isMuted = false;
+        let bgmTimer = null;
 
-        // 테트리스 블록 모양 생성
-        function createPiece(type) {
-            if (type === 'I') {
-                return [
-                    [0, 1, 0, 0],
-                    [0, 1, 0, 0],
-                    [0, 1, 0, 0],
-                    [0, 1, 0, 0],
-                ];
-            } else if (type === 'L') {
-                return [
-                    [0, 2, 0],
-                    [0, 2, 0],
-                    [0, 2, 2],
-                ];
-            } else if (type === 'J') {
-                return [
-                    [0, 3, 0],
-                    [0, 3, 0],
-                    [3, 3, 0],
-                ];
-            } else if (type === 'O') {
-                return [
-                    [4, 4],
-                    [4, 4],
-                ];
-            } else if (type === 'Z') {
-                return [
-                    [5, 5, 0],
-                    [0, 5, 5],
-                    [0, 0, 0],
-                ];
-            } else if (type === 'S') {
-                return [
-                    [0, 6, 6],
-                    [6, 6, 0],
-                    [0, 0, 0],
-                ];
-            } else if (type === 'T') {
-                return [
-                    [0, 7, 0],
-                    [7, 7, 7],
-                    [0, 0, 0],
-                ];
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
             }
         }
 
-        // 게임 판(매트릭스) 생성 (12가로, 20세로)
+        // 8-bit 스타일 톤 재생 (효과음용)
+        function playTone(freq, type = 'square', duration = 0.1, vol = 0.1) {
+            if (isMuted || !audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch(e){}
+        }
+
+        // 줄 지워질 때 신나는 레트로 사운드
+        function playClearSound() {
+            if (isMuted || !audioCtx) return;
+            const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+            notes.forEach((freq, idx) => {
+                setTimeout(() => playTone(freq, 'triangle', 0.15, 0.2), idx * 60);
+            });
+        }
+
+        // 테트리스 대표 멜로디 음고 정의 (Korobeiniki 90s 스타일)
+        const BGM_MELODY = [
+            {n: 659, d: 400}, {n: 494, d: 200}, {n: 523, d: 200}, {n: 587, d: 400}, {n: 523, d: 200}, {n: 494, d: 200},
+            {n: 440, d: 400}, {n: 440, d: 200}, {n: 523, d: 200}, {n: 659, d: 400}, {n: 587, d: 200}, {n: 523, d: 200},
+            {n: 494, d: 600}, {n: 523, d: 200}, {n: 587, d: 400}, {n: 659, d: 400}, {n: 523, d: 400}, {n: 440, d: 400}, {n: 440, d: 600},
+            {n: 587, d: 400}, {n: 698, d: 200}, {n: 880, d: 400}, {n: 784, d: 200}, {n: 698, d: 200}, {n: 659, d: 600}, {n: 523, d: 200},
+            {n: 659, d: 400}, {n: 587, d: 200}, {n: 523, d: 200}, {n: 494, d: 400}, {n: 494, d: 200}, {n: 523, d: 200}, {n: 587, d: 400},
+            {n: 659, d: 400}, {n: 523, d: 400}, {n: 440, d: 400}, {n: 440, d: 600}
+        ];
+        let bgmIndex = 0;
+
+        function playBGMStep() {
+            if (!isGameRunning || isMuted || !audioCtx) return;
+            const note = BGM_MELODY[bgmIndex];
+            playTone(note.n, 'sawtooth', note.d / 1000, 0.05); // 레트로 신스 톱니파 사용
+            
+            bgmIndex = (bgmIndex + 1) % BGM_MELODY.length;
+            bgmTimer = setTimeout(playBGMStep, note.d);
+        }
+
+        function startBGM() {
+            stopBGM();
+            bgmIndex = 0;
+            playBGMStep();
+        }
+
+        function stopBGM() {
+            if (bgmTimer) clearTimeout(bgmTimer);
+        }
+
+        function toggleSound() {
+            isMuted = !isMuted;
+            soundBtn.innerText = isMuted ? "BGM: OFF" : "BGM: ON";
+            if (!isMuted && isGameRunning) {
+                initAudio();
+                startBGM();
+            } else {
+                stopBGM();
+            }
+        }
+
+        // --- 테트리스 게임 로직 ---
+        const COLORS = [
+            null,
+            '#FF0D72', '#0DC2FF', '#0DFF72',
+            '#F538FF', '#FF8E0D', '#FFE138', '#3877FF'
+        ];
+
+        function createPiece(type) {
+            if (type === 'I') return [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]];
+            if (type === 'L') return [[0,2,0],[0,2,0],[0,2,2]];
+            if (type === 'J') return [[0,3,0],[0,3,0],[3,3,0]];
+            if (type === 'O') return [[4,4],[4,4]];
+            if (type === 'Z') return [[5,5,0],[0,5,5],[0,0,0]];
+            if (type === 'S') return [[0,6,6],[6,6,0],[0,0,0]];
+            if (type === 'T') return [[0,7,0],[7,7,7],[0,0,0]];
+        }
+
         function createMatrix(w, h) {
             const matrix = [];
-            while (h--) {
-                matrix.push(new Array(w).fill(0));
-            }
+            while (h--) matrix.push(new Array(w).fill(0));
             return matrix;
         }
 
@@ -211,13 +265,11 @@
             lines: 0
         };
 
-        // 충돌 검사
         function collide(arena, player) {
             const [m, o] = [player.matrix, player.pos];
             for (let y = 0; y < m.length; ++y) {
                 for (let x = 0; x < m[y].length; ++x) {
-                    if (m[y][x] !== 0 &&
-                       (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) {
+                    if (m[y][x] !== 0 && (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) {
                         return true;
                     }
                 }
@@ -225,7 +277,6 @@
             return false;
         }
 
-        // 바닥에 도달했을 때 판에 고정
         function merge(arena, player) {
             player.matrix.forEach((row, y) => {
                 row.forEach((value, x) => {
@@ -236,35 +287,46 @@
             });
         }
 
-        // 완성된 줄 삭제 및 점수 계산
+        // 🌟 [핵심] 완성된 줄을 삭제하고 위쪽 줄을 당겨와 공간을 만들어주는 로직
         function arenaSweep() {
             let rowCount = 1;
-            outer: for (let y = arena.length - 1; y > 0; --y) {
+            let cleared = false;
+            
+            // 아래 줄부터 위로 검사
+            outer: for (let y = arena.length - 1; y >= 0; --y) {
                 for (let x = 0; x < arena[y].length; ++x) {
                     if (arena[y][x] === 0) {
-                        continue outer;
+                        continue outer; // 0이 하나라도 있으면 안 지워짐
                     }
                 }
+
+                // 한 줄이 모두 차면 해당 행(row)을 삭제 
                 const row = arena.splice(y, 1)[0].fill(0);
+                // 삭제된 행의 빈 공간을 맨 위에 삽입하여 위쪽 블록 전체를 한 칸씩 아래로 내림
                 arena.unshift(row);
+                
+                // 삭제한 위치부터 다시 재검사
                 ++y;
 
                 player.score += rowCount * 10;
                 player.lines++;
                 rowCount *= 2;
+                cleared = true;
 
-                // 10줄 지울 때마다 레벨 업 & 속도 증가
                 if (player.lines >= player.level * 10) {
                     player.level++;
                     dropInterval = Math.max(100, 1000 - (player.level - 1) * 100);
                 }
             }
+
+            if (cleared) {
+                playClearSound(); // 완성 사운드 재생
+            }
             updateScore();
         }
 
-        // 그리기 함수
         function draw() {
-            context.fillStyle = '#000';
+            context.fillStyle = 'rgba(0, 0, 0, 0.85)';
             context.fillRect(0, 0, canvas.width, canvas.height);
 
             drawMatrix(arena, {x: 0, y: 0});
@@ -277,8 +339,6 @@
                     if (value !== 0) {
                         context.fillStyle = COLORS[value];
                         context.fillRect(x + offset.x, y + offset.y, 1, 1);
-                        
-                        // 블록 테두리 효과
                         context.lineWidth = 0.05;
                         context.strokeStyle = '#ffffff';
                         context.strokeRect(x + offset.x, y + offset.y, 1, 1);
@@ -287,47 +347,48 @@
             });
         }
 
-        // 떨어지는 로직
         function playerDrop() {
             player.pos.y++;
             if (collide(arena, player)) {
                 player.pos.y--;
                 merge(arena, player);
+                playTone(150, 'square', 0.05, 0.05); // 착지음
                 playerReset();
                 arenaSweep();
             }
             dropCounter = 0;
         }
 
-        // 바로 떨어뜨리기 (하드 드롭)
         function playerHardDrop() {
             while (!collide(arena, player)) {
                 player.pos.y++;
             }
             player.pos.y--;
             merge(arena, player);
+            playTone(200, 'square', 0.08, 0.08); // 하드드롭 효과음
             playerReset();
             arenaSweep();
             dropCounter = 0;
         }
 
-        // 좌우 이동
         function playerMove(dir) {
             player.pos.x += dir;
             if (collide(arena, player)) {
                 player.pos.x -= dir;
+            } else {
+                playTone(300, 'sine', 0.03, 0.03); // 이동 효과음
             }
         }
 
-        // 새로운 블록 생성
         function playerReset() {
             const pieces = 'ILJOTSZ';
             player.matrix = createPiece(pieces[pieces.length * Math.random() | 0]);
             player.pos.y = 0;
             player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
 
-            // 게임 오버 조건
             if (collide(arena, player)) {
+                stopBGM();
+                playTone(100, 'sawtooth', 0.5, 0.3);
                 alert("게임 오버! 최종 점수: " + player.score);
                 arena.forEach(row => row.fill(0));
                 player.score = 0;
@@ -338,7 +399,6 @@
             }
         }
 
-        // 회전 로직
         function playerRotate(dir) {
             const pos = player.pos.x;
             let offset = 1;
@@ -352,34 +412,29 @@
                     return;
                 }
             }
+            playTone(400, 'triangle', 0.05, 0.05); // 회전 효과음
         }
 
-        // 행렬 회전 알고리즘
         function rotate(matrix, dir) {
             for (let y = 0; y < matrix.length; ++y) {
                 for (let x = 0; x < y; ++x) {
                     [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
                 }
             }
-            if (dir > 0) {
-                matrix.forEach(row => row.reverse());
-            } else {
-                matrix.reverse();
-            }
+            if (dir > 0) matrix.forEach(row => row.reverse());
+            else matrix.reverse();
         }
 
-        // 점수 업데이트
         function updateScore() {
             scoreElement.innerText = player.score;
             levelElement.innerText = player.level;
         }
 
         let dropCounter = 0;
-        let dropInterval = 1000; // 1초마다 하강
+        let dropInterval = 1000;
         let lastTime = 0;
         let isGameRunning = false;
 
-        // 메인 게임 루프
         function update(time = 0) {
             if (!isGameRunning) return;
 
@@ -395,8 +450,8 @@
             requestAnimationFrame(update);
         }
 
-        // 게임 시작
         function startGame() {
+            initAudio();
             arena.forEach(row => row.fill(0));
             player.score = 0;
             player.level = 1;
@@ -409,22 +464,21 @@
                 isGameRunning = true;
                 update();
             }
+
+            if (!isMuted) {
+                startBGM();
+            }
         }
 
-        // 키보드 조작 이벤트
         document.addEventListener('keydown', event => {
             if (!isGameRunning) return;
 
-            if (event.keyCode === 37) { // 왼쪽 화살표
-                playerMove(-1);
-            } else if (event.keyCode === 39) { // 오른쪽 화살표
-                playerMove(1);
-            } else if (event.keyCode === 40) { // 아래쪽 화살표 (소프트 드롭)
-                playerDrop();
-            } else if (event.keyCode === 38) { // 위쪽 화살표 (회전)
-                playerRotate(1);
-            } else if (event.keyCode === 32) { // 스페이스바 (하드 드롭)
-                event.preventDefault(); // 스크롤 방지
+            if (event.keyCode === 37) playerMove(-1);
+            else if (event.keyCode === 39) playerMove(1);
+            else if (event.keyCode === 40) playerDrop();
+            else if (event.keyCode === 38) playerRotate(1);
+            else if (event.keyCode === 32) {
+                event.preventDefault();
                 playerHardDrop();
             }
         });
