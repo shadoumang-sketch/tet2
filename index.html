@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>90s 레트로 테트리스 게임</title>
+    <title>쉬운 레트로 테트리스 게임</title>
     <style>
         * {
             box-sizing: border-box;
@@ -45,7 +45,7 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            min-width: 160px;
+            min-width: 170px;
         }
 
         .info-box {
@@ -73,7 +73,7 @@
         .btn {
             width: 100%;
             padding: 10px;
-            font-size: 1rem;
+            font-size: 0.95rem;
             font-weight: bold;
             color: #000;
             background-color: #00ffcc;
@@ -85,14 +85,24 @@
             margin-bottom: 8px;
         }
 
-        .btn:hover {
+        .btn:hover:not(:disabled) {
             background-color: #ff0d72;
             color: #fff;
             box-shadow: 0 0 15px rgba(255, 13, 114, 0.7);
         }
 
-        .btn-secondary {
+        /* 1회 한정 필살기 폭탄 리셋 버튼 스타일 */
+        .btn-reset-board {
             background-color: #ff8e0d;
+            color: #fff;
+            box-shadow: 0 0 10px rgba(255, 142, 13, 0.5);
+        }
+
+        .btn-reset-board:disabled {
+            background-color: #555;
+            color: #888;
+            cursor: not-allowed;
+            box-shadow: none;
         }
 
         .controls-info {
@@ -114,6 +124,9 @@
 </head>
 <body>
 
+    <!-- 외부 배경음악 재생 태그 (게임 시작부터 종료 시까지 무한 반복) -->
+    <audio id="bgm-player" src="bgm.wav" loop preload="auto"></audio>
+
     <div class="game-container">
         <!-- 테트리스 게임판 (가로 12칸 x 세로 20칸) -->
         <canvas id="tetris" width="240" height="400"></canvas>
@@ -128,16 +141,18 @@
                     <h2>레벨 (LEVEL)</h2>
                     <p id="level">1</p>
                 </div>
+                
                 <button class="btn" id="start-btn" onclick="startGame()">게임 시작</button>
-                <button class="btn btn-secondary" id="sound-btn" onclick="toggleSound()">BGM: ON</button>
+                <!-- 💣 딱 한번 쌓인 테트리스를 비워주는 찬스 버튼 -->
+                <button class="btn btn-reset-board" id="bomb-btn" onclick="useBombReset()" disabled>💣 블록 청소 (1회)</button>
             </div>
 
             <div class="controls-info">
                 <h3>조작 방법</h3>
                 <p>◀ / ▶ : 좌우 이동</p>
                 <p>▲ : 회전</p>
-                <p>▼ : 소프트 드롭</p>
-                <p>스페이스바 : 하드 드롭</p>
+                <p>▼ : 천천히 내리기</p>
+                <p>스페이스바 : 즉시 하강</p>
             </div>
         </div>
     </div>
@@ -147,92 +162,13 @@
         const context = canvas.getContext('2d');
         const scoreElement = document.getElementById('score');
         const levelElement = document.getElementById('level');
-        const soundBtn = document.getElementById('sound-btn');
+        const bombBtn = document.getElementById('bomb-btn');
+        const bgmPlayer = document.getElementById('bgm-player');
 
         context.scale(20, 20);
 
-        // --- 레트로 사운드 (Web Audio API) 시스템 ---
-        let audioCtx = null;
-        let isMuted = false;
-        let bgmTimer = null;
+        let bombAvailable = true; // 1회한정 찬스 여부
 
-        function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-        }
-
-        // 8-bit 스타일 톤 재생 (효과음용)
-        function playTone(freq, type = 'square', duration = 0.1, vol = 0.1) {
-            if (isMuted || !audioCtx) return;
-            try {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = type;
-                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start();
-                osc.stop(audioCtx.currentTime + duration);
-            } catch(e){}
-        }
-
-        // 줄 지워질 때 신나는 레트로 사운드
-        function playClearSound() {
-            if (isMuted || !audioCtx) return;
-            const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
-            notes.forEach((freq, idx) => {
-                setTimeout(() => playTone(freq, 'triangle', 0.15, 0.2), idx * 60);
-            });
-        }
-
-        // 테트리스 대표 멜로디 음고 정의 (Korobeiniki 90s 스타일)
-        const BGM_MELODY = [
-            {n: 659, d: 400}, {n: 494, d: 200}, {n: 523, d: 200}, {n: 587, d: 400}, {n: 523, d: 200}, {n: 494, d: 200},
-            {n: 440, d: 400}, {n: 440, d: 200}, {n: 523, d: 200}, {n: 659, d: 400}, {n: 587, d: 200}, {n: 523, d: 200},
-            {n: 494, d: 600}, {n: 523, d: 200}, {n: 587, d: 400}, {n: 659, d: 400}, {n: 523, d: 400}, {n: 440, d: 400}, {n: 440, d: 600},
-            {n: 587, d: 400}, {n: 698, d: 200}, {n: 880, d: 400}, {n: 784, d: 200}, {n: 698, d: 200}, {n: 659, d: 600}, {n: 523, d: 200},
-            {n: 659, d: 400}, {n: 587, d: 200}, {n: 523, d: 200}, {n: 494, d: 400}, {n: 494, d: 200}, {n: 523, d: 200}, {n: 587, d: 400},
-            {n: 659, d: 400}, {n: 523, d: 400}, {n: 440, d: 400}, {n: 440, d: 600}
-        ];
-        let bgmIndex = 0;
-
-        function playBGMStep() {
-            if (!isGameRunning || isMuted || !audioCtx) return;
-            const note = BGM_MELODY[bgmIndex];
-            playTone(note.n, 'sawtooth', note.d / 1000, 0.05); // 레트로 신스 톱니파 사용
-            
-            bgmIndex = (bgmIndex + 1) % BGM_MELODY.length;
-            bgmTimer = setTimeout(playBGMStep, note.d);
-        }
-
-        function startBGM() {
-            stopBGM();
-            bgmIndex = 0;
-            playBGMStep();
-        }
-
-        function stopBGM() {
-            if (bgmTimer) clearTimeout(bgmTimer);
-        }
-
-        function toggleSound() {
-            isMuted = !isMuted;
-            soundBtn.innerText = isMuted ? "BGM: OFF" : "BGM: ON";
-            if (!isMuted && isGameRunning) {
-                initAudio();
-                startBGM();
-            } else {
-                stopBGM();
-            }
-        }
-
-        // --- 테트리스 게임 로직 ---
         const COLORS = [
             null,
             '#FF0D72', '#0DC2FF', '#0DFF72',
@@ -287,61 +223,89 @@
             });
         }
 
-        // 🌟 [핵심] 완성된 줄을 삭제하고 위쪽 줄을 당겨와 공간을 만들어주는 로직
+        // 완성된 줄 삭제 및 위쪽 줄 내려오기 로직
         function arenaSweep() {
             let rowCount = 1;
-            let cleared = false;
-            
-            // 아래 줄부터 위로 검사
             outer: for (let y = arena.length - 1; y >= 0; --y) {
                 for (let x = 0; x < arena[y].length; ++x) {
-                    if (arena[y][x] === 0) {
-                        continue outer; // 0이 하나라도 있으면 안 지워짐
-                    }
+                    if (arena[y][x] === 0) continue outer;
                 }
 
-                // 한 줄이 모두 차면 해당 행(row)을 삭제 
                 const row = arena.splice(y, 1)[0].fill(0);
-                // 삭제된 행의 빈 공간을 맨 위에 삽입하여 위쪽 블록 전체를 한 칸씩 아래로 내림
                 arena.unshift(row);
-                
-                // 삭제한 위치부터 다시 재검사
                 ++y;
 
                 player.score += rowCount * 10;
                 player.lines++;
                 rowCount *= 2;
-                cleared = true;
 
+                // 난이도를 너무 높이지 않도록 부드럽게 속도 증가
                 if (player.lines >= player.level * 10) {
                     player.level++;
-                    dropInterval = Math.max(100, 1000 - (player.level - 1) * 100);
+                    dropInterval = Math.max(300, 1800 - (player.level - 1) * 150);
                 }
             }
-
-            if (cleared) {
-                playClearSound(); // 완성 사운드 재생
-            }
             updateScore();
+        }
+
+        // 💣 1회 한정 찬스: 남아있는 테트리스 블록을 모두 지움
+        function useBombReset() {
+            if (!isGameRunning || !bombAvailable) return;
+
+            arena.forEach(row => row.fill(0)); // 판 전체 비우기
+            bombAvailable = false;
+            bombBtn.disabled = true;
+            bombBtn.innerText = "💣 찬스 사용완료";
+        }
+
+        // 그림자 위치 계산 (착지 위치 가이드라인)
+        function getGhostPosition() {
+            const ghost = {
+                pos: { x: player.pos.x, y: player.pos.y },
+                matrix: player.matrix
+            };
+            while (!collide(arena, ghost)) {
+                ghost.pos.y++;
+            }
+            ghost.pos.y--;
+            return ghost.pos;
         }
 
         function draw() {
             context.fillStyle = 'rgba(0, 0, 0, 0.85)';
             context.fillRect(0, 0, canvas.width, canvas.height);
 
+            // 1. 고정된 보드 그리기에
             drawMatrix(arena, {x: 0, y: 0});
-            drawMatrix(player.matrix, player.pos);
+
+            // 2. 가이드 그림자 그리기 (쉬운 버전의 핵심!)
+            if (player.matrix) {
+                const ghostPos = getGhostPosition();
+                drawMatrix(player.matrix, ghostPos, true);
+            }
+
+            // 3. 현재 떨어지는 블록 그리기
+            if (player.matrix) {
+                drawMatrix(player.matrix, player.pos);
+            }
         }
 
-        function drawMatrix(matrix, offset) {
+        function drawMatrix(matrix, offset, isGhost = false) {
             matrix.forEach((row, y) => {
                 row.forEach((value, x) => {
                     if (value !== 0) {
-                        context.fillStyle = COLORS[value];
-                        context.fillRect(x + offset.x, y + offset.y, 1, 1);
-                        context.lineWidth = 0.05;
-                        context.strokeStyle = '#ffffff';
-                        context.strokeRect(x + offset.x, y + offset.y, 1, 1);
+                        if (isGhost) {
+                            // 그림자 블록은 반투명하고 점선 테두리로 표기
+                            context.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                            context.lineWidth = 0.05;
+                            context.strokeRect(x + offset.x, y + offset.y, 1, 1);
+                        } else {
+                            context.fillStyle = COLORS[value];
+                            context.fillRect(x + offset.x, y + offset.y, 1, 1);
+                            context.lineWidth = 0.05;
+                            context.strokeStyle = '#ffffff';
+                            context.strokeRect(x + offset.x, y + offset.y, 1, 1);
+                        }
                     }
                 });
             });
@@ -352,7 +316,6 @@
             if (collide(arena, player)) {
                 player.pos.y--;
                 merge(arena, player);
-                playTone(150, 'square', 0.05, 0.05); // 착지음
                 playerReset();
                 arenaSweep();
             }
@@ -365,7 +328,6 @@
             }
             player.pos.y--;
             merge(arena, player);
-            playTone(200, 'square', 0.08, 0.08); // 하드드롭 효과음
             playerReset();
             arenaSweep();
             dropCounter = 0;
@@ -375,8 +337,6 @@
             player.pos.x += dir;
             if (collide(arena, player)) {
                 player.pos.x -= dir;
-            } else {
-                playTone(300, 'sine', 0.03, 0.03); // 이동 효과음
             }
         }
 
@@ -386,15 +346,16 @@
             player.pos.y = 0;
             player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
 
+            // 게임 오버 조건
             if (collide(arena, player)) {
-                stopBGM();
-                playTone(100, 'sawtooth', 0.5, 0.3);
                 alert("게임 오버! 최종 점수: " + player.score);
+                bgmPlayer.pause();
                 arena.forEach(row => row.fill(0));
                 player.score = 0;
                 player.level = 1;
                 player.lines = 0;
-                dropInterval = 1000;
+                dropInterval = 1800;
+                isGameRunning = false;
                 updateScore();
             }
         }
@@ -412,7 +373,6 @@
                     return;
                 }
             }
-            playTone(400, 'triangle', 0.05, 0.05); // 회전 효과음
         }
 
         function rotate(matrix, dir) {
@@ -431,7 +391,7 @@
         }
 
         let dropCounter = 0;
-        let dropInterval = 1000;
+        let dropInterval = 1800; // 🎯 쉬운 버전: 기본 1.8초마다 한칸 하강
         let lastTime = 0;
         let isGameRunning = false;
 
@@ -451,22 +411,27 @@
         }
 
         function startGame() {
-            initAudio();
             arena.forEach(row => row.fill(0));
             player.score = 0;
             player.level = 1;
             player.lines = 0;
-            dropInterval = 1000;
+            dropInterval = 1800; // 넉넉한 1.8초 낙하 속도
+
+            // 폭탄 버튼 초기화
+            bombAvailable = true;
+            bombBtn.disabled = false;
+            bombBtn.innerText = "💣 블록 청소 (1회)";
+
             updateScore();
             playerReset();
             
+            // 배경음악 무한 루프 재생
+            bgmPlayer.currentTime = 0;
+            bgmPlayer.play().catch(() => {});
+
             if (!isGameRunning) {
                 isGameRunning = true;
                 update();
-            }
-
-            if (!isMuted) {
-                startBGM();
             }
         }
 
